@@ -4,6 +4,7 @@ import { connectDB } from './config/db/db.js';
 import authRouter from './routes/auth.route.js'
 
 const app = express();
+app.use(express.json())
 
 let PORT = 3000;
 
