@@ -3,13 +3,16 @@ import bcrypt from 'bcrypt';
 import { customAlphabet } from 'nanoid';
 import jwt from 'jsonwebtoken';
 
-const formatDataToSend = (user) => {
+const formatDataToSend = (user, msg) => {
     const access_token = jwt.sign({ id: user._id }, process.env.JWT_SECRET_KEY)
     return {
-        access_token,
-        fullName: user.personal_info.fullName,
-        username: user.personal_info.username,
-        profile_img: user.personal_info.profile_img
+        message: msg,
+        data: {
+            access_token,
+            fullName: user.personal_info.fullName,
+            username: user.personal_info.username,
+            profile_img: user.personal_info.profile_img
+        }
     }
 }
 
@@ -58,7 +61,7 @@ const registerUser = async (req, res) => {
                     password: hashed_pass
                 }
             })
-            user.save().then((u) => res.status(200).json(formatDataToSend(u))).catch(err => res.status(500).json({ 'error': err.message }))
+            user.save().then((u) => res.status(200).json(formatDataToSend(u, "Sign In successful!"))).catch(err => res.status(500).json({ 'error': err.message }))
 
         })
     }
@@ -88,7 +91,7 @@ const loginUser = async (req, res) => {
                 return res.status(403).json({ "error": "Incorrect credentials" })
             }
             else {
-                return res.status(200).json(formatDataToSend(existingUser))
+                return res.status(200).json(formatDataToSend(existingUser, "Login successful!"))
             }
         })
 
