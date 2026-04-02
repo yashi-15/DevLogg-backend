@@ -2,6 +2,8 @@ import { User } from "../models/user.model.js";
 import bcrypt from 'bcrypt';
 import { customAlphabet } from 'nanoid';
 import jwt from 'jsonwebtoken';
+import admin from 'firebase-admin'
+import {getAuth} from 'firebase-admin/auth'
 
 const formatDataToSend = (user, msg) => {
     const access_token = jwt.sign({ id: user._id }, process.env.JWT_SECRET_KEY)
@@ -82,7 +84,11 @@ const loginUser = async (req, res) => {
     const existingUser = await User.findOne({ 'personal_info.email': email })
     if (!existingUser) {
         return res.status(403).json({ "error": "User does not exist" })
-    } else {
+    }
+    if(existingUser.google_auth){
+        return res.status(403).json({"error": "This account was created using google"})
+    }
+    else {
         bcrypt.compare(password, existingUser.personal_info.password, (err, result) => {
             if (err) {
                 return res.status(403).json({ "error": "Error logging in" })
@@ -98,4 +104,48 @@ const loginUser = async (req, res) => {
     }
 }
 
-export { registerUser, loginUser }
+admin.initializeApp({
+    credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
+});
+
+const googleAuth = async (req, res) => {
+    let {access_token} = req.body
+
+    getAuth().verifyIdToken(access_token).then(async (decodedUser) => {
+        let { name, email, picture } = decodedUser;
+        picture = picture.replace("s96-c", "s384-c"); //to get bigger resolution picture
+        let user = await User.findOne({"personal_info.email": email}).select("personal_info.fullName personal_info.email personal_info.profile_img google_auth").then((u) => u ||null).catch(err => res.status(500).json({"error": err.message}))
+        if(user){ //google loginnn
+            if(!user.google_auth){
+                return res.status(403).json({"error": "This account was signed in without google so please use email & password"})
+            } 
+        }
+        else{ // google signup
+            let username = await generateUsername(email)
+
+            user = new User ({
+                personal_info: {
+                    fullName: name,
+                    email: email,
+                    profile_img: picture,
+                    username,
+                },
+                google_auth: true
+            })
+
+            await user.save().then((u) => {
+                user = u
+            }).catch(err => {
+                return res.status(500).json({"error": err.message})
+            })
+        }
+
+        return res.status(200).json(formatDataToSend(user, "Sign In successful!"))
+
+    }).catch(err => {
+        return res.status(500).json({"error": "Failed to signin using google"})
+    })
+    
+}
+
+export { registerUser, loginUser, googleAuth }
