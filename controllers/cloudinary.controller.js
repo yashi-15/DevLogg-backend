@@ -1,29 +1,28 @@
 import fs from 'fs'
+import cloudinary from '../utils/cloudinary.js';
 
 
 export const uploadImageCloudinary = async (req, res) =>{
     try {
         if (!req.file) return res.status(400).json({"error": "No file provided"})
 
-        // Convert buffer to base64 and upload to Cloudinary
-        const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`
-
         console.log("doing");
         
         //upload file on cloudinary
-        const result = await cloudinary.uploader.upload(base64, {
+        const result = await cloudinary.uploader.upload(req.file.path, {
             resource_type: "image"
         })
         console.log("done");
         
-        
+        fs.unlinkSync(req.file.path)
+
         res.status(200).json({
             secure_url: result.secure_url,
             public_id: result.public_id
         })
 
     } catch (error) {
-        fs.unlinkSync(req.file)  //remove locally saved temp file as operation got failed
+        if (req.file?.path) fs.unlinkSync(req.file.path)  //remove locally saved temp file as operation got failed
         res.status(500).json({ "error": error.message })
     }
 }
